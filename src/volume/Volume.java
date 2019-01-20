@@ -76,7 +76,7 @@ public class Volume {
     }
 
 
-    float a= -0.5f; // global variable that defines the value of a used in cubic interpolation.
+    float a= -1f; // global variable that defines the value of a used in cubic interpolation.
     //todo pick correct a, valid values are -1, -0.75 and -0.5
     // you need to chose the right value
         
@@ -97,10 +97,13 @@ public class Volume {
         } else if(1<=absX && absX<2) {
             return a*absX3-5*a*absX2+8*a*absX-4*a;
         } else {
+//            System.out.println(x);
             return 0f;
         }
    }
-    
+
+   float maxfx = Float.MIN_VALUE;
+    float minfx = Float.MAX_VALUE;
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE IMPLEMENTED /////////////////////////
     ////////////////////////////////////////////////////////////////////// 
@@ -109,53 +112,28 @@ public class Volume {
     // We assume the out of bounce checks have been done earlier
     
     private float cubicinterpolate(float g0, float g1, float g2, float g3, float factor) {
-       
-        // implemented
-        
-//        float result = 1.0f;
+        float w0 = weight(factor+1);
+        float w1 = weight(factor);
+        float w2 = weight(factor-1);
+        float w3 = weight(factor-2);
 
-//        int f0 = (int) Math.floor(g0);
-//        int f1 = (int) Math.floor(g1);
-//        int f2 = (int) Math.floor(g2);
-//        int f3 = (int) Math.floor(g3);
+        float fx = g0*w0+g1*w1+g2*w2+g3*w3;
+        // prevent out of bounds values produced by f(x) from causing artifacts
+        fx = Math.max(0, fx);
+        fx = Math.min(255, fx);
 
-        //currently using https://www.paulinternet.nl/?page=bicubic
-        //todo change to correct values?
-
-//        float f0 = g1;
-//        float f1 = g2;
-//        float f_prime0 = (g2-g0)/2f;
-//        float f_prime1 = (g3-g1)/2f;
-//
-//        float a = 2*f0-2*f1+f_prime0+f_prime1;
-//        float b = -3*f0+3*f1-2*f_prime0-f_prime1;
-//        float c = f_prime0;
-//        float d = f_prime1;
-//
-//        float factor3 = ((float)Math.pow(factor,3));
-//        float factor2 = ((float)Math.pow(factor,2));
-                            
-//        return a*factor3+b*factor2+c*factor+d;
-
-        float w0 = weight((g0+factor)/factor);
-        float w1 = weight((g1)/factor);
-        float w2 = weight((g2-1*factor)/factor);
-        float w3 = weight((g3-2*factor)/factor);
-
-        return g0*w0+g1*w1+g2*w2+g3*w3;
+        return fx;
     }
 
-    private float cubicInterpolateXaxis(double[] coord, int offsetY, int z) {
+    private float cubicInterpolateXaxis(double[] coord, int offsetY, int offsetZ) {
         int c_x = (int) Math.floor(coord[0]);
         int c_y = (int) Math.floor(coord[1]);
+        int c_z = (int) Math.floor(coord[2]);
 
-
-
-
-        float g0 = getVoxel(c_x-1, c_y+offsetY, z);
-        float g1 = getVoxel( c_x, c_y+offsetY, z);;
-        float g2 = getVoxel(c_x+1, c_y+offsetY, z);;
-        float g3 = getVoxel(c_x+2, c_y+offsetY, z);;
+        float g0 = getVoxel(c_x-1, c_y+offsetY, c_z+offsetZ);
+        float g1 = getVoxel( c_x, c_y+offsetY, c_z+offsetZ);
+        float g2 = getVoxel(c_x+1, c_y+offsetY, c_z+offsetZ);
+        float g3 = getVoxel(c_x+2, c_y+offsetY, c_z+offsetZ);
 
         float factorX = (float)coord[0]-c_x;
 
@@ -168,15 +146,13 @@ public class Volume {
     ////////////////////////////////////////////////////////////////////// 
     // 2D cubic interpolation implemented here. We do it for plane XY. Coord contains the position.
     // We assume the out of bounce checks have been done earlier
-    private float bicubicinterpolateXY(double[] coord, int z) {
-            
-        // implemented
-        float y0 = cubicInterpolateXaxis(coord, -1, z);
-        float y1 = cubicInterpolateXaxis(coord, 0, z);
-        float y2 = cubicInterpolateXaxis(coord, 1, z);
-        float y3 = cubicInterpolateXaxis(coord, 2, z);
+    private float bicubicinterpolateXY(double[] coord, int offsetZ) {
+        float y0 = cubicInterpolateXaxis(coord, -1, offsetZ);
+        float y1 = cubicInterpolateXaxis(coord, 0, offsetZ);
+        float y2 = cubicInterpolateXaxis(coord, 1, offsetZ);
+        float y3 = cubicInterpolateXaxis(coord, 2, offsetZ);
 
-        float factorY = (float)coord[1]- (float)Math.floor(coord[1]);
+        float factorY = (float)coord[1]-(float)Math.floor(coord[1]);
                             
         return cubicinterpolate(y0, y1, y2, y3, factorY);
 
@@ -193,12 +169,10 @@ public class Volume {
             return 0;
         }
 
-        float z0 = bicubicinterpolateXY(coord,0);
-        float z1 = bicubicinterpolateXY(coord,1);;
-        float z2 = bicubicinterpolateXY(coord,2);;
-        float z3 = bicubicinterpolateXY(coord,3);;
-
-        // to be implemented              
+        float z0 = bicubicinterpolateXY(coord,-1);
+        float z1 = bicubicinterpolateXY(coord,0);;
+        float z2 = bicubicinterpolateXY(coord,1);;
+        float z3 = bicubicinterpolateXY(coord,2);;
 
         float factorZ = (float)coord[2]-(float)Math.floor(coord[2]);
                             
