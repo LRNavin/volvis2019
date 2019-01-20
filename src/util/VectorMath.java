@@ -50,5 +50,22 @@ public class VectorMath {
         return Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
     }
     
-
+    //Navin
+    // compute multiply of vectors v and scalar s
+    public static double[] multiply(double[] v, double s) {
+        double[]  r = new double [3];
+        for (int i=0; i<3; i++) {
+            r[i] = v[i] * s;
+        }
+        return r;
+    }
+    
+    // compute dotproduct of vectors v and w
+    public static double[] subtract(double[] v, double[] w) {
+        double[] r = new double [3];
+        for (int i=0; i<3; i++) {
+            r[i] = v[i] - w[i];
+        }
+        return r;
+    }
 }

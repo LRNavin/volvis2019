@@ -218,28 +218,54 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
    
    int traceRayIso(double[] entryPoint, double[] exitPoint, double[] rayVector, double sampleStep) {
        
-        double[] lightVector = new double[3];
+        /////--------------
+       //Navin
+       double[] lightVector = new double[3];
         //We define the light vector as directed toward the view point (which is the source of the light)
         // another light vector would be possible
-         VectorMath.setVector(lightVector, rayVector[0], rayVector[1], rayVector[2]);
-       
-        // To be Implemented
-              
+        VectorMath.setVector(lightVector, rayVector[0], rayVector[1], rayVector[2]);
         //Initialization of the colors as floating point values
         double r, g, b;
         r = g = b = 0.0;
         double alpha = 0.0;
         double opacity = 0;
         
-              
-        // To be Implemented this function right now just gives back a constant color
+        double[] increments = new double[3];
+        VectorMath.setVector(increments, rayVector[0] * sampleStep, rayVector[1] * sampleStep, rayVector[2] * sampleStep);
         
-        
-         // isoColor contains the isosurface color from the interface
-         r = isoColor.r;g = isoColor.g;b =isoColor.b;alpha =1.0;
-        //computes the color
-        int color = computeImageColor(r,g,b,alpha);
+        // Compute the number of times we need to sample
+        double distance = VectorMath.distance(entryPoint, exitPoint);
+        int nrSamples = 1 + (int) Math.floor(distance / sampleStep);
+
+        //the current position is initialized as the entry point
+        double[] currentPos = new double[3];
+        // save the previous position
+        double[] prevPos = new double[3];
+        VectorMath.setVector(currentPos, entryPoint[0] += increments[0], entryPoint[1] += increments[1], entryPoint[2] + increments[2]);
+        VectorMath.setVector(prevPos, entryPoint[0], entryPoint[1], entryPoint[2]);
+        TFColor c = new TFColor(0.1,0.1,0.1,1.0);
+        boolean foundValue = false;
+        do {
+            double currValue = volume.getVoxelLinearInterpolate(currentPos);
+//            double prevValue = volume.getVoxelLinearInterpolate(prevPos);
+            //TODO - bisection
+            if( currValue >= iso_value  ) {
+                r = isoColor.r;
+                g = isoColor.g;
+                b = isoColor.b;
+                alpha = 1.0;
+                c = computePhongShading(new TFColor(r,g,b,alpha), gradients.getGradient(currentPos), lightVector, rayVector);
+                foundValue = true;
+            }
+            for (int i = 0; i < 3; i++){
+                prevPos[i] = currentPos[i];
+                currentPos[i] += increments[i];
+            }
+            nrSamples--;
+        } while (nrSamples > 0 && !foundValue);
+        int color = computeImageColor(c.r,c.g,c.b,c.a);
         return color;
+       
     }
    
     //////////////////////////////////////////////////////////////////////
@@ -314,13 +340,65 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     // Compute Phong Shading given the voxel color (material color), the gradient, the light vector and view vector 
     TFColor computePhongShading(TFColor voxel_color, VoxelGradient gradient, double[] lightVector,
             double[] rayVector) {
+        //Navin
+        //La, Ld, Ls
+        double[] lightAmbient   = new double[3]; 
+        double[] lightDiffuse   = new double[3]; 
+        double[] lightSpecular  = new double[3]; 
+        
+        double[] R = new double[3];
+        double[] r2 = new double[3];
 
+        //Slide Cos theta values
+        double diffuseCos     = 0;
+        double specularCos    = 0;
+
+        //normal vec
+        double[] plane_normal  = new double[3]; 
+
+        VectorMath.setVector(lightAmbient, 1.0, 1.0, 1.0);
+        VectorMath.setVector(lightDiffuse, 1.0, 1.0, 1.0);
+        VectorMath.setVector(lightSpecular, 1.0, 1.0, 1.0);
+                
+        VectorMath.setVector(plane_normal, gradient.x/gradient.mag, gradient.y/gradient.mag, gradient.z/gradient.mag);
+        
+        //Ka, Kd, Ks
+        double reflectAmbient  = 0.1; 
+        double reflectDiffuse  = 0.7; 
+        double reflectSpecular = 0.2; 
+
+        int a = 10;        
+        
+        diffuseCos  = VectorMath.dotproduct(lightVector, plane_normal);
+        
+        double buffer = VectorMath.dotproduct(plane_normal, lightVector) * 2;
+        r2 = VectorMath.multiply(plane_normal, buffer); 
+        specularCos = Math.pow(VectorMath.dotproduct(VectorMath.subtract(r2,lightVector), rayVector), a);
+
+//        System.out.println(plane_normal[2]);  
+//        System.out.println(lightVector[0]);  
+//        
+//        System.out.println("CO-EFFFSS");
+//        System.out.println(diffuseCos);  
+//        System.out.println(specularCos);  
+        
         // To be implemented 
+        double r =  lightAmbient[0] * reflectAmbient * voxel_color.r +
+                    lightDiffuse[0] * reflectDiffuse * voxel_color.r * diffuseCos +
+                    lightSpecular[0] * reflectSpecular * 1.0 * specularCos ;
         
-        TFColor color = new TFColor(0,0,0,1);
+        double g =  lightAmbient[1] * reflectAmbient * voxel_color.g +
+                    lightDiffuse[1] * reflectDiffuse * voxel_color.g * diffuseCos +
+                    lightSpecular[1] * reflectSpecular * 1.0 * specularCos ;
+         
+        double b =  lightAmbient[2] * reflectAmbient * voxel_color.b +
+                    lightDiffuse[2] * reflectDiffuse * voxel_color.b * diffuseCos +
+                    lightSpecular[2] * reflectSpecular * 1.0 * specularCos ;
         
+        //Output Color vector
+        TFColor phongColor = new TFColor(r,g,b,voxel_color.a);
         
-        return color;
+        return phongColor;
     }
     
     
