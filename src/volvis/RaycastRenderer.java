@@ -566,13 +566,12 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 // tFunc2D.baseIntensity, tFunc2D.radius they are in image intensity units
 
 public double computeOpacity2DTF(double voxelValue, double gradMagnitude) {
+    //if the gradients are low, just return transparant
+    if(gradMagnitude<0.1){return 0;}
+
     //init opacity to 0 (=transparent)
     double opacity = 0.0;
     
-    if(gradMagnitude<0.1){
-        return 0;
-    }
-
     //these are obtained from the triangle widget
     short intensity = tFunc2D.baseIntensity;
     double radius = tFunc2D.radius;
@@ -580,11 +579,12 @@ public double computeOpacity2DTF(double voxelValue, double gradMagnitude) {
     //trigonometrics: calculate angle that current voxel makes with base intensity
     double opposite = Math.abs(voxelValue-intensity);
     double adjacent = gradMagnitude;
+    //arctan of O/A gives us angle in radians, then convert to degrees
     double voxelRadius = Math.toDegrees(Math.atan(opposite/adjacent));
     
     //if the voxel is inside the triangle from the widget, make it opaque
     if(voxelRadius < radius/2.0){
-        opacity = 1.0;  
+        opacity = tFunc2D.color.a;  
     }
      
     return opacity;
