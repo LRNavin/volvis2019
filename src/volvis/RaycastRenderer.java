@@ -16,7 +16,6 @@ import volume.GradientVolume;
 import volume.Volume;
 import volume.VoxelGradient;
 
-import java.awt.Color;
 
 
 /**
@@ -302,36 +301,101 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double alpha = 0.0;
         double opacity = 0;
         
-        
         TFColor voxel_color = new TFColor();
-        TFColor colorAux = new TFColor();
         
-        // To be Implemented this function right now just gives back a constant color depending on the mode
+        //the current position and increment vector
+        double[] currentPos = new double[3];
+        double[] increments = new double[3];
+        VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
+        VectorMath.setVector(increments, rayVector[0] * sampleStep, rayVector[1] * sampleStep, rayVector[2] * sampleStep);
         
+        //compute nr samples
+        int nrSamples = 1 + (int) Math.floor(VectorMath.distance(entryPoint, exitPoint) / sampleStep);
+       
         if (compositingMode) {
             // 1D transfer function 
-            voxel_color.r = 1;voxel_color.g =0;voxel_color.b =0;voxel_color.a =1;
-            opacity = 1;
+            voxel_color = ComputeTF1DColor(new TFColor(r,g,b,alpha), currentPos, increments, nrSamples); 
         }    
         if (tf2dMode) {
-             // 2D transfer function 
-            voxel_color.r = 0;voxel_color.g =1;voxel_color.b =0;voxel_color.a =1;
-            opacity = 1;      
+            // 2D transfer function
+            TFColor color = new TFColor(tFunc2D.color.r,tFunc2D.color.g,tFunc2D.color.b,0);
+            voxel_color= ComputeTF2DColor(color, currentPos, increments, nrSamples);      
         }
         if (shadingMode) {
             // Shading mode on
-            voxel_color.r = 1;voxel_color.g =0;voxel_color.b =1;voxel_color.a =1;
-            opacity = 1;     
+            voxel_color.r = 1;voxel_color.g =0;voxel_color.b =1;voxel_color.a =1;     
         }
-            
+               
+        //r = g = b = value;    
         r = voxel_color.r ;
         g = voxel_color.g ;
         b = voxel_color.b;
-        alpha = opacity ;
+        alpha = voxel_color.a;
             
         //computes the color
         int color = computeImageColor(r,g,b,alpha);
         return color;
+    }
+    
+    /*
+    //recursive function to compute TF2D color over the raytrace 
+    //from entry until exit point
+    */
+    TFColor ComputeTF2DColor(TFColor color, double[] currentPos, double[] increments, int nrSamples){
+        //base case: stop at end of ray OR when opacity is close to max
+        if(nrSamples<=0 || color.a >=0.999){  
+            return color;
+        }
+
+        //calculate gradient magnitude and intensity of current voxel
+        double gradientMagnitude = gradients.getGradient(currentPos).mag;
+        double intensity = volume.getVoxelLinearInterpolate(currentPos);
+        
+        //calculate opacity of current voxel 
+        double opacity = computeOpacity2DTF(intensity, gradientMagnitude); 
+        
+        //composite current color and next voxel component
+        TFColor result = CompositeColors(color, intensity, opacity);
+        
+        //increment position
+        for (int i = 0; i < 3; i++) {currentPos[i] += increments[i];}
+        //recursive call
+        return ComputeTF2DColor(result, currentPos, increments, nrSamples-1);
+    }
+    
+    /*
+    //recursive function to compute color composited over the raytrace 
+    //from entry until exit point
+    */
+    TFColor ComputeTF1DColor(TFColor color, double[] currentPos, double[] increments, int nrSamples) {
+        //base case: stop at end of ray OR when opacity is close to max
+        if(nrSamples<=0 || color.a >=0.999){  
+            return color;
+        }
+        
+        //get current intensity and voxel color
+        int intensity = (int)(volume.getVoxelLinearInterpolate(currentPos)); 
+        double opacity = tFunc.getColor(intensity).a;
+        
+        //composite voxel values and current color
+        TFColor result = CompositeColors(color, intensity, opacity);
+        
+        //increment position
+        for (int i = 0; i < 3; i++) {currentPos[i] += increments[i];}
+        //recursive call
+        return ComputeTF1DColor(result, currentPos, increments, nrSamples-1);    
+    }
+    
+    
+    //returns the a color composited from current (front) color and next voxel
+    public TFColor CompositeColors(TFColor frontColor, double intensityNextVoxel, double opacityNextVoxel){
+        //update color with voxel component
+        frontColor.r += (1-frontColor.a)*intensityNextVoxel*opacityNextVoxel;
+        frontColor.g += (1-frontColor.a)*intensityNextVoxel*opacityNextVoxel;
+        frontColor.b += (1-frontColor.a)*intensityNextVoxel*opacityNextVoxel;
+        frontColor.a += (1-frontColor.a)*opacityNextVoxel;
+        
+        return frontColor;
     }
     
     //////////////////////////////////////////////////////////////////////
@@ -501,13 +565,28 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 // triangle widget tFunc2D contains the values of the baseintensity and radius
 // tFunc2D.baseIntensity, tFunc2D.radius they are in image intensity units
 
-public double computeOpacity2DTF(double material_value, double material_r,
-        double voxelValue, double gradMagnitude) {
-
+public double computeOpacity2DTF(double voxelValue, double gradMagnitude) {
+    //init opacity to 0 (=transparent)
     double opacity = 0.0;
-
-    // to be implemented
     
+    if(gradMagnitude<0.1){
+        return 0;
+    }
+
+    //these are obtained from the triangle widget
+    short intensity = tFunc2D.baseIntensity;
+    double radius = tFunc2D.radius;
+    
+    //trigonometrics: calculate angle that current voxel makes with base intensity
+    double opposite = Math.abs(voxelValue-intensity);
+    double adjacent = gradMagnitude;
+    double voxelRadius = Math.toDegrees(Math.atan(opposite/adjacent));
+    
+    //if the voxel is inside the triangle from the widget, make it opaque
+    if(voxelRadius < radius/2.0){
+        opacity = 1.0;  
+    }
+     
     return opacity;
 }  
 
