@@ -132,7 +132,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
                 //val = volume.getVoxelNN(pixelCoord);
                 
                 //you have also the function getVoxelLinearInterpolated in Volume.java          
-//                val = (int) volume.getVoxelLinearInterpolate(pixelCoord);
+                //val = (int) volume.getVoxelLinearInterpolate(pixelCoord);
                 
                 //you have to implement this function below to get the cubic interpolation
                 val = (int) volume.getVoxelTriCubicInterpolate(pixelCoord);
@@ -147,8 +147,8 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
                 // pixelColor.a = val > 0 ? 1.0 : 0.0;   
                 
                 // Alternatively, apply the transfer function to obtain a color using the tFunc attribute
-                // colorAux= tFunc.getColor(val);
-                // pixelColor.r=colorAux.r;pixelColor.g=colorAux.g;pixelColor.b=colorAux.b;pixelColor.a=colorAux.a; 
+                //colorAux= tFunc.getColor(val);
+                //pixelColor.r=colorAux.r;pixelColor.g=colorAux.g;pixelColor.b=colorAux.b;pixelColor.a=colorAux.a; 
                 // IMPORTANT: You can also simply use pixelColor = tFunc.getColor(val); However then you copy by reference and this means that if you change 
                 // pixelColor you will be actually changing the transfer function So BE CAREFUL when you do this kind of assignments
 
@@ -246,14 +246,22 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         boolean foundValue = false;
         do {
             double currValue = volume.getVoxelLinearInterpolate(currentPos);
-//            double prevValue = volume.getVoxelLinearInterpolate(prevPos);
+            //double prevValue = volume.getVoxelLinearInterpolate(prevPos);
             //TODO - bisection
             if( currValue >= iso_value  ) {
                 r = isoColor.r;
                 g = isoColor.g;
                 b = isoColor.b;
                 alpha = 1.0;
-                c = computePhongShading(new TFColor(r,g,b,alpha), gradients.getGradient(currentPos), lightVector, rayVector);
+                
+                // Shading mode on
+                if (shadingMode) {
+                    c = computePhongShading(new TFColor(r,g,b,alpha), gradients.getGradient(currentPos), lightVector, rayVector);
+                }
+                else{//just make volume opaque isovalue object
+                    c.r = r;c.g=g;c.b=b;c.a=alpha;
+                }
+      
                 foundValue = true;
             }
             for (int i = 0; i < 3; i++){
@@ -318,12 +326,14 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         }    
         if (tf2dMode) {
             // 2D transfer function
-            TFColor color = new TFColor(tFunc2D.color.r,tFunc2D.color.g,tFunc2D.color.b,0);
+            TFColor color = new TFColor(tFunc2D.color.r,tFunc2D.color.g,tFunc2D.color.b,tFunc2D.color.a);
             voxel_color= ComputeTF2DColor(color, currentPos, increments, nrSamples);      
         }
         if (shadingMode) {
-            // Shading mode on
-            voxel_color.r = 1;voxel_color.g =0;voxel_color.b =1;voxel_color.a =1;     
+                //add shading
+                TFColor temp;
+                temp = computePhongShading(voxel_color, gradients.getGradient(currentPos), lightVector, rayVector);
+                voxel_color = temp;
         }
                
         //r = g = b = value;    
@@ -354,13 +364,13 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         //calculate opacity of current voxel 
         double opacity = computeOpacity2DTF(intensity, gradientMagnitude); 
         
-        //composite current color and next voxel component
-        TFColor result = CompositeColors(color, intensity, opacity);
+        //composite current opacity and previous voxel component
+        color.a += (1-color.a)*opacity;
         
         //increment position
         for (int i = 0; i < 3; i++) {currentPos[i] += increments[i];}
         //recursive call
-        return ComputeTF2DColor(result, currentPos, increments, nrSamples-1);
+        return ComputeTF2DColor(color, currentPos, increments, nrSamples-1);
     }
     
     /*
@@ -369,13 +379,15 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     */
     TFColor ComputeTF1DColor(TFColor color, double[] currentPos, double[] increments, int nrSamples) {
         //base case: stop at end of ray OR when opacity is close to max
-        if(nrSamples<=0 || color.a >=0.999){  
+        if(nrSamples<=0 || color.a >=0.999){ 
             return color;
         }
         
         //get current intensity and voxel color
-        int intensity = (int)(volume.getVoxelLinearInterpolate(currentPos)); 
-        double opacity = tFunc.getColor(intensity).a;
+        //int intensity = (int)(volume.getVoxelTriCubicInterpolate(currentPos));
+        int intensity = (int) volume.getVoxelLinearInterpolate(currentPos);
+        TFColor colorAux = tFunc.getColor(intensity);
+        double opacity = colorAux.a;
         
         //composite voxel values and current color
         TFColor result = CompositeColors(color, intensity, opacity);
@@ -397,6 +409,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         
         return frontColor;
     }
+    
     
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE IMPLEMENTED /////////////////////////
@@ -566,25 +579,24 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 // tFunc2D.baseIntensity, tFunc2D.radius they are in image intensity units
 
 public double computeOpacity2DTF(double voxelValue, double gradMagnitude) {
-    //if the gradients are low, just return transparant
-    if(gradMagnitude<0.1){return 0;}
-
     //init opacity to 0 (=transparent)
     double opacity = 0.0;
     
     //these are obtained from the triangle widget
     short intensity = tFunc2D.baseIntensity;
     double radius = tFunc2D.radius;
+    //arctan of O/A gives us angle in radians
+    double angle = Math.atan(radius/gradients.getMaxGradientMagnitude());
     
-    //trigonometrics: calculate angle that current voxel makes with base intensity
+    //trigonometrics: calculate angle that current voxel makes with base intensity center
     double opposite = Math.abs(voxelValue-intensity);
     double adjacent = gradMagnitude;
-    //arctan of O/A gives us angle in radians, then convert to degrees
-    double voxelRadius = Math.toDegrees(Math.atan(opposite/adjacent));
+    double voxelAngle = Math.atan(opposite/adjacent);
     
     //if the voxel is inside the triangle from the widget, make it opaque
-    if(voxelRadius < radius/2.0){
-        opacity = tFunc2D.color.a;  
+    if(voxelAngle < angle){
+        //the factor voxelAngle/angle is used as a ramp
+        opacity = voxelAngle/angle*tFunc2D.color.a;  
     }
      
     return opacity;
