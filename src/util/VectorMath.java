@@ -68,4 +68,27 @@ public class VectorMath {
         }
         return r;
     }
+    
+    //Get Vector Midpoint
+    public static double[] getVectorsMid(double[] vec1, double[] vec2){
+       double[] mid = new double[3];
+       for(int i = 0 ; i < 3 ; i++){
+           mid[i] = vec1[i]/2 + vec2[i]/2;
+       }
+       return mid;
+   }
+    
+     //Check Vector Equality
+    public static boolean isVectorEqual(double[] vec1, double[] vec2){
+       
+       boolean result = true; 
+       double[] mid = new double[3];
+       for(int i = 0 ; i < 3 ; i++){
+           if (vec1[i] != vec2[i]) {
+               result = false;
+               break;
+           }
+       }
+       return result;
+   }
 }

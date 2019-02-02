@@ -15,7 +15,7 @@ import util.VectorMath;
 import volume.GradientVolume;
 import volume.Volume;
 import volume.VoxelGradient;
-
+import java.util.Arrays;
 
 
 /**
@@ -242,13 +242,17 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double[] prevPos = new double[3];
         VectorMath.setVector(currentPos, entryPoint[0] += increments[0], entryPoint[1] += increments[1], entryPoint[2] + increments[2]);
         VectorMath.setVector(prevPos, entryPoint[0], entryPoint[1], entryPoint[2]);
-        TFColor c = new TFColor(0.1,0.1,0.1,1.0);
+        TFColor c = new TFColor(0.0,0.0,0.0,1.0);
         boolean foundValue = false;
         do {
             double currValue = volume.getVoxelLinearInterpolate(currentPos);
-            //double prevValue = volume.getVoxelLinearInterpolate(prevPos);
-            //TODO - bisection
-            if( currValue >= iso_value  ) {
+            double prevValue = volume.getVoxelLinearInterpolate(prevPos);
+
+            if((Math.floor(prevValue) < iso_value && Math.floor(currValue) >= iso_value)
+                    || (Math.floor(prevValue) <= iso_value && Math.floor(currValue) > iso_value)){
+                
+                double[] pos = bisection_accuracy(currentPos, prevPos, prevValue, currValue);
+                
                 r = isoColor.r;
                 g = isoColor.g;
                 b = isoColor.b;
@@ -256,7 +260,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
                 
                 // Shading mode on
                 if (shadingMode) {
-                    c = computePhongShading(new TFColor(r,g,b,alpha), gradients.getGradient(currentPos), lightVector, rayVector);
+                    c = computePhongShading(new TFColor(r,g,b,alpha), gradients.getGradient(pos), lightVector, rayVector);
                 }
                 else{//just make volume opaque isovalue object
                     c.r = r;c.g=g;c.b=b;c.a=alpha;
@@ -282,11 +286,81 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     // Given the current sample position, increment vector of the sample (vector from previous sample to current sample) and sample Step. 
    // Previous sample value and current sample value, isovalue value
     // The function should search for a position where the iso_value passes that it is more precise.
-   void  bisection_accuracy (double[] currentPos, double[] increments,double sampleStep, float previousvalue,float value, float iso_value)
+   double[]  bisection_accuracy (double[] currentPos, double[] previousPos, double prevValue, double currValue)
    {
+       
+        double[] firstValue = new double[3];  
+        double[] lastValue = new double[3];  
 
-           // to be implemented
+        if (Math.floor(prevValue) < iso_value && Math.floor(currValue) >= iso_value) {
+            firstValue = previousPos;
+            lastValue  = currentPos;
+        }
+        else {
+            firstValue = currentPos;
+            lastValue  = previousPos;
+        }
+       
+        double[] midPos = new double[3];
+        while(!VectorMath.isVectorEqual(firstValue,lastValue)){
+
+            midPos = VectorMath.getVectorsMid(firstValue, lastValue);
+            double val = volume.getVoxelLinearInterpolate(midPos);
+            if(Math.floor(val) == iso_value){
+                 return midPos;
+            }
+            else if(Math.floor(val) < iso_value) {
+                 VectorMath.setVector(firstValue, midPos[0], midPos[1], midPos[2]);
+            }
+            else {
+                 VectorMath.setVector(lastValue, midPos[0], midPos[1], midPos[2]);
+            }
+       }
+       return midPos;
+   
    }
+   
+   
+//   double[]  bisection_accuracy (double[] curr, double[] prev, int mode)
+//   {
+//        boolean found = false;
+//        double[] midPos = new double[3];
+//        while(true && !vectorsAreEqual(curr,prev)){
+//           // get the middle point bewteen two positions
+//           midPos = calcMid(curr, prev);
+//           double val = volume.getVoxelLinearInterpolate(midPos);
+//           if(mode == 1){ // if segment is increasing in value 
+//               if(Math.floor(val) == iso_value){
+//                    return midPos;
+//               }
+//               else if(Math.floor(val) < iso_value) {
+//                    VectorMath.setVector(prev, midPos[0], midPos[1], midPos[2]);
+//               }
+//               else {
+//                    VectorMath.setVector(curr, midPos[0], midPos[1], midPos[2]);
+//               }
+//           } else{ // if segment is decreasing in value 
+//               if(Math.floor(val) == iso_value){
+//                    return midPos;
+//               }
+//               else if(Math.floor(val) < iso_value) {
+//                    VectorMath.setVector(curr, midPos[0], midPos[1], midPos[2]);
+//               }
+//               else {
+//                    VectorMath.setVector(prev, midPos[0], midPos[1], midPos[2]);
+//               }
+//           }
+//       }
+//       return midPos;
+//   }
+//   
+//   double[] calcMid(double[]c, double[] p){
+//       double[] mid = new double[3];
+//       for(int i = 0 ; i < 3 ; i++){
+//           mid[i] = p[i]/2 + c[i]/2;
+//       }
+//       return mid;
+//   }
     
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE IMPLEMENTED /////////////////////////
