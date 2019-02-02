@@ -56,7 +56,25 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     private float max_res_factor=0.25f;
     private TFColor isoColor; 
 
-    
+    void interactiveModeSlicer(double[] pixelCoord, double[] volumeCenter, int[] imageCenter, TFColor pixelColor, Double max, int imageH, int imageW, double[] uVec, double[] vVec) {
+        //Iterate on every pixel
+        for (int j = imageCenter[1] - imageH/2; j < imageCenter[1] + imageH/2; j++) {
+            for (int i =  imageCenter[0] - imageW/2; i <imageCenter[0] + imageW/2; i++) {
+                // every even pixel takes the average of its neighbours in interactiveMode
+                computePixelCoordinatesFloat(pixelCoord,volumeCenter,uVec,vVec,i,j);
+
+                int val = volume.getVoxelNN(pixelCoord);
+                pixelColor.r = (val/max);
+                pixelColor.g = pixelColor.r;
+                pixelColor.b = pixelColor.r;
+
+                int pixelColor_i = computeImageColor(pixelColor.r,pixelColor.g,pixelColor.b,pixelColor.a);
+                image.setRGB(i, j, pixelColor_i);
+            }
+        }
+
+    }
+
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE MODIFIED    /////////////////////////
     ////////////////////////////////////////////////////////////////////// 
@@ -65,7 +83,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     
     void slicer(double[] viewMatrix) {
         // todo study this function, also what happens when changing the resolution
-	
+
         // we start by clearing the image
         resetImage();
 
@@ -119,6 +137,12 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
         // Contains the voxel value of interest
         int val;
+
+        if(this.interactiveMode){
+            // if we are in interactiveMode, use the faster  but inferior method instead.
+            interactiveModeSlicer( pixelCoord,  volumeCenter,  imageCenter,  pixelColor,  max,  imageH,  imageW, uVec, vVec);
+            return;
+        }
         
         //Iterate on every pixel
         for (int j = imageCenter[1] - imageH/2; j < imageCenter[1] + imageH/2; j++) {
