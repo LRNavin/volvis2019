@@ -380,18 +380,16 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
        
         if (compositingMode) {
             // 1D transfer function 
-            voxel_color = ComputeTF1DColor(new TFColor(r,g,b,alpha), currentPos, increments, nrSamples); 
+            voxel_color = computeTF1DColor(new TFColor(r,g,b,alpha), currentPos, increments, nrSamples); 
         }    
         if (tf2dMode) {
             // 2D transfer function
             TFColor color = new TFColor(tFunc2D.color.r,tFunc2D.color.g,tFunc2D.color.b,tFunc2D.color.a);
-            voxel_color= ComputeTF2DColor(color, currentPos, increments, nrSamples);      
+            voxel_color= computeTF2DColor(color, currentPos, increments, nrSamples);      
         }
         if (shadingMode) {
-                //add shading
-                TFColor temp;
-                temp = computePhongShading(voxel_color, gradients.getGradient(currentPos), lightVector, rayVector);
-                voxel_color = temp;
+            //add shading 
+            voxel_color = computePhongShading(voxel_color, gradients.getGradient(currentPos), lightVector, rayVector);
         }
                
         //r = g = b = value;    
@@ -402,6 +400,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             
         //computes the color
         int color = computeImageColor(r,g,b,alpha);
+         
         return color;
     }
     
@@ -409,7 +408,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     //recursive function to compute TF2D color over the raytrace 
     //from entry until exit point
     */
-    TFColor ComputeTF2DColor(TFColor color, double[] currentPos, double[] increments, int nrSamples){
+    TFColor computeTF2DColor(TFColor color, double[] currentPos, double[] increments, int nrSamples){
         //base case: stop at end of ray OR when opacity is close to max
         if(nrSamples<=0 || color.a >=0.999){  
             return color;
@@ -423,19 +422,19 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double opacity = computeOpacity2DTF(intensity, gradientMagnitude); 
         
         //composite current opacity and previous voxel component
-        color.a += (1-color.a)*opacity;
+        color = compositeColors2D(color, intensity, opacity);
         
         //increment position
         for (int i = 0; i < 3; i++) {currentPos[i] += increments[i];}
         //recursive call
-        return ComputeTF2DColor(color, currentPos, increments, nrSamples-1);
+        return computeTF2DColor(color, currentPos, increments, nrSamples-1);
     }
     
     /*
     //recursive function to compute color composited over the raytrace 
     //from entry until exit point
     */
-    TFColor ComputeTF1DColor(TFColor color, double[] currentPos, double[] increments, int nrSamples) {
+    TFColor computeTF1DColor(TFColor color, double[] currentPos, double[] increments, int nrSamples) {
         //base case: stop at end of ray OR when opacity is close to max
         if(nrSamples<=0 || color.a >=0.999){ 
             return color;
@@ -448,21 +447,34 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double opacity = colorAux.a;
         
         //composite voxel values and current color
-        TFColor result = CompositeColors(color, intensity, opacity);
+        TFColor result = compositeColors(color, intensity, opacity);
         
         //increment position
         for (int i = 0; i < 3; i++) {currentPos[i] += increments[i];}
         //recursive call
-        return ComputeTF1DColor(result, currentPos, increments, nrSamples-1);    
+        return computeTF1DColor(result, currentPos, increments, nrSamples-1);    
     }
     
     
     //returns the a color composited from current (front) color and next voxel
-    public TFColor CompositeColors(TFColor frontColor, double intensityNextVoxel, double opacityNextVoxel){
+    public TFColor compositeColors(TFColor frontColor, double intensityNextVoxel, double opacityNextVoxel){
         //update color with voxel component
-        frontColor.r += (1-frontColor.a)*intensityNextVoxel*opacityNextVoxel;
-        frontColor.g += (1-frontColor.a)*intensityNextVoxel*opacityNextVoxel;
-        frontColor.b += (1-frontColor.a)*intensityNextVoxel*opacityNextVoxel;
+        frontColor.r += (1-frontColor.a)*tFunc.getColor((int) intensityNextVoxel).r*opacityNextVoxel;
+        frontColor.g += (1-frontColor.a)*tFunc.getColor((int) intensityNextVoxel).g*opacityNextVoxel;
+        frontColor.b += (1-frontColor.a)*tFunc.getColor((int) intensityNextVoxel).b*opacityNextVoxel;
+        
+        frontColor.a += (1-frontColor.a)*opacityNextVoxel;
+        
+        return frontColor;
+    }
+    
+//returns the a color composited from current (front) color and next voxel
+    public TFColor compositeColors2D(TFColor frontColor, double intensityNextVoxel, double opacityNextVoxel){
+        //update color with voxel component
+        frontColor.r += (1-frontColor.a)*tFunc2D.color.r*opacityNextVoxel;
+        frontColor.g += (1-frontColor.a)*tFunc2D.color.g*opacityNextVoxel;
+        frontColor.b += (1-frontColor.a)*tFunc2D.color.b*opacityNextVoxel;
+        
         frontColor.a += (1-frontColor.a)*opacityNextVoxel;
         
         return frontColor;
@@ -648,8 +660,10 @@ public double computeOpacity2DTF(double voxelValue, double gradMagnitude) {
     
     //if the voxel is inside the triangle from the widget, make it opaque
     if(voxelAngle < angle){
-        //the factor voxelAngle/angle is used as a ramp
-        opacity = voxelAngle/angle*tFunc2D.color.a;  
+        //the factor 1-voxelAngle/angle is used as a ramp, the center of the triangle 
+        //will have an opacity of 1 while the edges will have an opacity of 0
+        //opacity = 1;
+        opacity = 1-(voxelAngle/angle);
     }
      
     return opacity;
