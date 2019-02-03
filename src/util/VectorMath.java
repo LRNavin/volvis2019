@@ -3,7 +3,7 @@
  * and open the template in the editor.
  */
 package util;
-
+import java.text.DecimalFormat;
 /**
  *
  * @author michel and modified by Anna Vilanova
@@ -78,17 +78,26 @@ public class VectorMath {
        return mid;
    }
     
-     //Check Vector Equality
+    //Check Vector Equality
     public static boolean isVectorEqual(double[] vec1, double[] vec2){
        
        boolean result = true; 
        double[] mid = new double[3];
        for(int i = 0 ; i < 3 ; i++){
-           if (vec1[i] != vec2[i]) {
+           if (round(vec1[i],4) != round(vec2[i],4)) {
                result = false;
                break;
            }
        }
        return result;
-   }
+    }
+    
+    public static double round(double value, int places) {
+        if (places < 0) throw new IllegalArgumentException();
+
+        long factor = (long) Math.pow(10, places);
+        value = value * factor;
+        long tmp = Math.round(value);
+        return (double) tmp / factor;
+    }
 }
