@@ -241,18 +241,14 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
    
    int traceRayIso(double[] entryPoint, double[] exitPoint, double[] rayVector, double sampleStep) {
        
-        /////--------------
-       //Navin
-       double[] lightVector = new double[3];
+        double[] lightVector = new double[3];
         //We define the light vector as directed toward the view point (which is the source of the light)
         // another light vector would be possible
         VectorMath.setVector(lightVector, rayVector[0], rayVector[1], rayVector[2]);
-        //Initialization of the colors as floating point values
-        double r, g, b;
-        r = g = b = 0.0;
+        //Initialization of the opacity as floating point values
         double alpha = 0.0;
-        double opacity = 0;
         
+        //compute the increment and the number of samples
         double[] increments = new double[3];
         VectorMath.setVector(increments, rayVector[0] * sampleStep, rayVector[1] * sampleStep, rayVector[2] * sampleStep);
         
@@ -262,43 +258,47 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
         //the current position is initialized as the entry point
         double[] currentPos = new double[3];
-        // save the previous position
         double[] prevPos = new double[3];
         VectorMath.setVector(currentPos, entryPoint[0] += increments[0], entryPoint[1] += increments[1], entryPoint[2] + increments[2]);
         VectorMath.setVector(prevPos, entryPoint[0], entryPoint[1], entryPoint[2]);
-        TFColor c = new TFColor(0.0,0.0,0.0,1.0);
-        boolean foundValue = false;
+        
+        //temp color where pixel color is stored during computation
+        TFColor temp_color = new TFColor(0.0,0.0,0.0,1.0);
+        
+        //Optimize and break computation once pixel value found
+        boolean compute = false;
         do {
-            double currValue = volume.getVoxelLinearInterpolate(currentPos);
-            double prevValue = volume.getVoxelLinearInterpolate(prevPos);
-
-            if((Math.floor(prevValue) < iso_value && Math.floor(currValue) >= iso_value)
-                    || (Math.floor(prevValue) <= iso_value && Math.floor(currValue) > iso_value)){
-                
-                double[] pos = bisection_accuracy(currentPos, prevPos, prevValue, currValue);
-                
-                r = isoColor.r;
-                g = isoColor.g;
-                b = isoColor.b;
+            //Get position's equal liinear interpolation values 
+            double currentVal  = volume.getVoxelLinearInterpolate(currentPos);
+            double previousVal = volume.getVoxelLinearInterpolate(prevPos);
+            
+            // check whether isovalue lies between the current and previous position  
+            if((Math.floor(previousVal) < iso_value && Math.floor(currentVal) >= iso_value)
+                    || (Math.floor(previousVal) <= iso_value && Math.floor(currentVal) > iso_value)){
                 alpha = 1.0;
                 
+                //bisection search for accurate position - function call
+                double[] accuratePostion = bisection_accuracy(currentPos, prevPos, previousVal, currentVal);
+
                 // Shading mode on
                 if (shadingMode) {
-                    c = computePhongShading(new TFColor(r,g,b,alpha), gradients.getGradient(pos), lightVector, rayVector);
+                    //compute shading
+                    temp_color = computePhongShading(new TFColor(isoColor.r,isoColor.g,isoColor.b,alpha), gradients.getGradient(accuratePostion), lightVector, rayVector);
                 }
                 else{//just make volume opaque isovalue object
-                    c.r = r;c.g=g;c.b=b;c.a=alpha;
+                    temp_color.r = isoColor.r; temp_color.g=isoColor.g; temp_color.b=isoColor.b; temp_color.a=alpha;
                 }
       
-                foundValue = true;
+                compute = true;
             }
             for (int i = 0; i < 3; i++){
+                //Store current position as previous position and update current position with increments
                 prevPos[i] = currentPos[i];
                 currentPos[i] += increments[i];
             }
             nrSamples--;
-        } while (nrSamples > 0 && !foundValue);
-        int color = computeImageColor(c.r,c.g,c.b,c.a);
+        } while (!compute && nrSamples > 0);
+        int color = computeImageColor(temp_color.r,temp_color.g,temp_color.b,temp_color.a);
         return color;
        
     }
@@ -316,6 +316,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double[] firstValue = new double[3];  
         double[] lastValue = new double[3];  
 
+        //determine the largest and smallest value for binary search
         if (Math.floor(prevValue) < iso_value && Math.floor(currValue) >= iso_value) {
             firstValue = previousPos;
             lastValue  = currentPos;
@@ -325,6 +326,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             lastValue  = previousPos;
         }
        
+        //Binary Search algo - for a search for the position where the iso_value passes that it is more precise. 
         double[] midPos = new double[3];
         while(!VectorMath.isVectorEqual(firstValue,lastValue)){
 
@@ -343,48 +345,6 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
        return midPos;
    
    }
-   
-   
-//   double[]  bisection_accuracy (double[] curr, double[] prev, int mode)
-//   {
-//        boolean found = false;
-//        double[] midPos = new double[3];
-//        while(true && !vectorsAreEqual(curr,prev)){
-//           // get the middle point bewteen two positions
-//           midPos = calcMid(curr, prev);
-//           double val = volume.getVoxelLinearInterpolate(midPos);
-//           if(mode == 1){ // if segment is increasing in value 
-//               if(Math.floor(val) == iso_value){
-//                    return midPos;
-//               }
-//               else if(Math.floor(val) < iso_value) {
-//                    VectorMath.setVector(prev, midPos[0], midPos[1], midPos[2]);
-//               }
-//               else {
-//                    VectorMath.setVector(curr, midPos[0], midPos[1], midPos[2]);
-//               }
-//           } else{ // if segment is decreasing in value 
-//               if(Math.floor(val) == iso_value){
-//                    return midPos;
-//               }
-//               else if(Math.floor(val) < iso_value) {
-//                    VectorMath.setVector(curr, midPos[0], midPos[1], midPos[2]);
-//               }
-//               else {
-//                    VectorMath.setVector(prev, midPos[0], midPos[1], midPos[2]);
-//               }
-//           }
-//       }
-//       return midPos;
-//   }
-//   
-//   double[] calcMid(double[]c, double[] p){
-//       double[] mid = new double[3];
-//       for(int i = 0 ; i < 3 ; i++){
-//           mid[i] = p[i]/2 + c[i]/2;
-//       }
-//       return mid;
-//   }
     
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE IMPLEMENTED /////////////////////////
@@ -515,7 +475,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     // Compute Phong Shading given the voxel color (material color), the gradient, the light vector and view vector 
     TFColor computePhongShading(TFColor voxel_color, VoxelGradient gradient, double[] lightVector,
             double[] rayVector) {
-        //Navin
+
         //La, Ld, Ls
         double[] lightAmbient   = new double[3]; 
         double[] lightDiffuse   = new double[3]; 
@@ -525,16 +485,18 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double[] r2 = new double[3];
 
         //Slide Cos theta values
-        double diffuseCos     = 0;
-        double specularCos    = 0;
+        double diffuseCos     = 0; // diffuse
+        double specularCos    = 0; // specular
 
         //normal vec
         double[] plane_normal  = new double[3]; 
 
+        //Light Vectors for each component
         VectorMath.setVector(lightAmbient, 1.0, 1.0, 1.0);
         VectorMath.setVector(lightDiffuse, 1.0, 1.0, 1.0);
         VectorMath.setVector(lightSpecular, 1.0, 1.0, 1.0);
-                
+        
+        //normal vector from coordinate gradient
         VectorMath.setVector(plane_normal, gradient.x/gradient.mag, gradient.y/gradient.mag, gradient.z/gradient.mag);
         
         //Ka, Kd, Ks
@@ -542,22 +504,15 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double reflectDiffuse  = 0.7; 
         double reflectSpecular = 0.2; 
 
-        int a = 10;        
+        //Constant
+        int a = 100;        
         
         diffuseCos  = VectorMath.dotproduct(lightVector, plane_normal);
-        
         double buffer = VectorMath.dotproduct(plane_normal, lightVector) * 2;
         r2 = VectorMath.multiply(plane_normal, buffer); 
-        specularCos = Math.pow(VectorMath.dotproduct(VectorMath.subtract(r2,lightVector), rayVector), a);
-
-//        System.out.println(plane_normal[2]);  
-//        System.out.println(lightVector[0]);  
-//        
-//        System.out.println("CO-EFFFSS");
-//        System.out.println(diffuseCos);  
-//        System.out.println(specularCos);  
+        specularCos = Math.pow(VectorMath.dotproduct(VectorMath.subtract(r2,lightVector), rayVector), a); 
         
-        // To be implemented 
+        // Phong Shading Formula for RGB 
         double r =  lightAmbient[0] * reflectAmbient * voxel_color.r +
                     lightDiffuse[0] * reflectDiffuse * voxel_color.r * diffuseCos +
                     lightSpecular[0] * reflectSpecular * 1.0 * specularCos ;
