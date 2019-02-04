@@ -100,6 +100,7 @@ public class TransferFunction2DEditor extends javax.swing.JPanel {
         intensityLabel.setText(Integer.toString(tf2D.baseIntensity));
         radiusLabel.setText(String.format("%.3f", tf2D.radius));
         opacityLabel.setText(String.format("%.1f", tf2D.color.a));
+        //minGradLabel.setText(String.format("%.3f", tf2D.minGradient));
         colorButton.setBackground(new Color((float) tf2D.color.r, (float) tf2D.color.g, (float) tf2D.color.b));
     }
 
@@ -219,15 +220,15 @@ public class TransferFunction2DEditor extends javax.swing.JPanel {
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 73, Short.MAX_VALUE)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                             .addGroup(layout.createSequentialGroup()
-                                .addComponent(jLabel3)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                                .addComponent(labelMaxVal)
-                                .addContainerGap())
-                            .addGroup(layout.createSequentialGroup()
                                 .addComponent(jLabel7)
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                                 .addComponent(radiusLabel, javax.swing.GroupLayout.PREFERRED_SIZE, 84, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                .addGap(130, 130, 130))))
+                                .addGap(130, 130, 130))
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jLabel3)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(labelMaxVal)
+                                .addContainerGap())))
                     .addGroup(layout.createSequentialGroup()
                         .addComponent(plotPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addContainerGap())))
@@ -331,4 +332,6 @@ public class TransferFunction2DEditor extends javax.swing.JPanel {
     private javax.swing.JPanel plotPanel;
     private javax.swing.JTextField radiusLabel;
     // End of variables declaration//GEN-END:variables
+
 }
+
