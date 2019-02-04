@@ -536,6 +536,13 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double b =  lightAmbient[2] * reflectAmbient * voxel_color.b +
                     lightDiffuse[2] * reflectDiffuse * voxel_color.b * diffuseCos +
                     lightSpecular[2] * reflectSpecular * 1.0 * specularCos ;
+
+        r = Math.max(0, r);
+        r = Math.min(255, r);
+        g = Math.max(0, g);
+        g = Math.min(255, g);
+        b = Math.max(0, b);
+        b = Math.min(255, b);
         
         //Output Color vector
         TFColor phongColor = new TFColor(r,g,b,voxel_color.a);
