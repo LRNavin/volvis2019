@@ -415,11 +415,11 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         }
 
         //calculate gradient magnitude and intensity of current voxel
-        double gradientMagnitude = gradients.getGradient(currentPos).mag;
+        VoxelGradient gradient = gradients.getGradient(currentPos);
         double intensity = volume.getVoxelLinearInterpolate(currentPos);
         
         //calculate opacity of current voxel 
-        double opacity = computeOpacity2DTF(intensity, gradientMagnitude); 
+        double opacity = computeOpacity2DTF(intensity, (double) gradient.mag);  
         
         //composite current opacity and previous voxel component
         color = compositeColors2D(color, intensity, opacity);
@@ -440,6 +440,13 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             return color;
         }
         
+        // Alternatively, apply the transfer function to obtain a color using the tFunc attribute
+        //colorAux= tFunc.getColor(val);
+        //pixelColor.r=colorAux.r;pixelColor.g=colorAux.g;pixelColor.b=colorAux.b;pixelColor.a=colorAux.a; 
+        // IMPORTANT: You can also simply use pixelColor = tFunc.getColor(val); However then you copy by reference and this means that if you change 
+        // pixelColor you will be actually changing the transfer function So BE CAREFUL when you do this kind of assignments
+        
+        
         //get current intensity and voxel color
         //int intensity = (int)(volume.getVoxelTriCubicInterpolate(currentPos));
         int intensity = (int) volume.getVoxelLinearInterpolate(currentPos);
@@ -458,22 +465,26 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     
     //returns the a color composited from current (front) color and next voxel
     public TFColor compositeColors(TFColor frontColor, double intensityNextVoxel, double opacityNextVoxel){
+        TFColor colorAux = tFunc.getColor((int) intensityNextVoxel);
+
         //update color with voxel component
-        frontColor.r += (1-frontColor.a)*tFunc.getColor((int) intensityNextVoxel).r*opacityNextVoxel;
-        frontColor.g += (1-frontColor.a)*tFunc.getColor((int) intensityNextVoxel).g*opacityNextVoxel;
-        frontColor.b += (1-frontColor.a)*tFunc.getColor((int) intensityNextVoxel).b*opacityNextVoxel;
+        frontColor.r += (1-frontColor.a)*colorAux.r*opacityNextVoxel;
+        frontColor.g += (1-frontColor.a)*colorAux.g*opacityNextVoxel;
+        frontColor.b += (1-frontColor.a)*colorAux.b*opacityNextVoxel;
         
         frontColor.a += (1-frontColor.a)*opacityNextVoxel;
         
         return frontColor;
     }
     
-//returns the a color composited from current (front) color and next voxel
+    //returns the a color composited from current (front) color and next voxel
     public TFColor compositeColors2D(TFColor frontColor, double intensityNextVoxel, double opacityNextVoxel){
+        TFColor colorAux = tFunc2D.color;
+
         //update color with voxel component
-        frontColor.r += (1-frontColor.a)*tFunc2D.color.r*opacityNextVoxel;
-        frontColor.g += (1-frontColor.a)*tFunc2D.color.g*opacityNextVoxel;
-        frontColor.b += (1-frontColor.a)*tFunc2D.color.b*opacityNextVoxel;
+        frontColor.r += (1-frontColor.a)*colorAux.r*opacityNextVoxel;
+        frontColor.g += (1-frontColor.a)*colorAux.g*opacityNextVoxel;
+        frontColor.b += (1-frontColor.a)*colorAux.b*opacityNextVoxel;
         
         frontColor.a += (1-frontColor.a)*opacityNextVoxel;
         
@@ -658,7 +669,8 @@ public double computeOpacity2DTF(double voxelValue, double gradMagnitude) {
     short intensity = tFunc2D.baseIntensity;
     double radius = tFunc2D.radius;
     //arctan of O/A gives us angle in radians
-    double angle = Math.atan(radius/gradients.getMaxGradientMagnitude());
+    double maxGrad = gradients.getMaxGradientMagnitude();
+    double angle = Math.atan(radius/maxGrad);
     
     //trigonometrics: calculate angle that current voxel makes with base intensity center
     double opposite = Math.abs(voxelValue-intensity);
@@ -667,10 +679,13 @@ public double computeOpacity2DTF(double voxelValue, double gradMagnitude) {
     
     //if the voxel is inside the triangle from the widget, make it opaque
     if(voxelAngle < angle){
-        //the factor 1-voxelAngle/angle is used as a ramp, the center of the triangle 
-        //will have an opacity of 1 while the edges will have an opacity of 0
-        //opacity = 1;
-        opacity = 1-(voxelAngle/angle);
+        //if the data point is above the TF2D extension line
+        if(gradMagnitude > maxGrad - tFunc2D.minGradient){
+            //the factor 1-voxelAngle/angle is used as a ramp, the center of the triangle 
+            //will have an opacity of 1 while the edges will have an opacity of 0
+            //opacity = 1;
+            opacity = 1-(voxelAngle/angle); 
+        }   
     }
      
     return opacity;
@@ -802,7 +817,7 @@ public double computeOpacity2DTF(double voxelValue, double gradMagnitude) {
         tFunc.addTFChangeListener(this);
         tfEditor = new TransferFunctionEditor(tFunc, volume.getHistogram());
         
-        tFunc2D= new TransferFunction2D((short) (volume.getMaximum() / 2), 0.2*volume.getMaximum());
+        tFunc2D= new TransferFunction2D((short) (volume.getMaximum() / 2), 0.2*volume.getMaximum(), gradients.getMaxGradientMagnitude());
         tfEditor2D = new TransferFunction2DEditor(tFunc2D,volume, gradients);
         tfEditor2D.addTFChangeListener(this);
 
